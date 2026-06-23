@@ -60,6 +60,14 @@ export class UploadController {
     @UploadedFile() file: Express.Multer.File,
     @Query('type') type: string,
   ) {
+    // Fix 3: validate ?type= before processing the file
+    const validTypes = Object.values(UploadType) as string[];
+    if (!type || !validTypes.includes(type)) {
+      throw new BadRequestException(
+        `Invalid upload type. Must be one of: ${validTypes.join(', ')}`,
+      );
+    }
+
     if (!file) throw new BadRequestException('No file provided');
     if (!ALLOWED_MIME_TYPES.includes(file.mimetype)) {
       throw new BadRequestException('Only JPG, PNG, and WebP files are allowed');
@@ -68,7 +76,7 @@ export class UploadController {
       throw new BadRequestException('File must be smaller than 5 MB');
     }
 
-    const key = getUploadKey(type ?? UploadType.AVATAR, req.user.id, file);
+    const key = getUploadKey(type, req.user.id, file);
     const url = await this.storage.upload(key, file.buffer, file.mimetype);
 
     return { url };

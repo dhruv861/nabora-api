@@ -7,6 +7,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { UsersModule } from './modules/users/users.module';
 import { SkillsModule } from './modules/skills/skills.module';
 import { UploadModule } from './modules/upload/upload.module';
+import { JobsModule } from './modules/jobs/jobs.module';
+import { SitemapModule } from './modules/sitemap/sitemap.module';
 
 @Module({
   imports: [
@@ -27,11 +29,15 @@ import { UploadModule } from './modules/upload/upload.module';
       { name: 'medium', ttl: 60000, limit: 100 },   // 100 req/min
     ]),
 
-    // ─── Feature Modules (Sprint 1) ──────────────────────────────────────────
+    // ─── Feature Modules (Sprint 1) ──────────────────────────────────────────────
     AuthModule,
     UsersModule,
     SkillsModule,
     UploadModule,
+
+    // ─── Feature Modules (Sprint 2) ──────────────────────────────────────────────
+    JobsModule,
+    SitemapModule,
   ],
 })
 export class AppModule {}

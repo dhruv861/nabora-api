@@ -1,4 +1,4 @@
-import { Controller, Get, Patch, Post, Body, Param, UseGuards, Request } from '@nestjs/common';
+import { Controller, Get, Patch, Post, Delete, Body, Param, Query, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { UsersService } from './users.service';
@@ -62,5 +62,43 @@ export class UsersController {
     @Body() dto: UpdateWorkerProfileDto,
   ) {
     return this.usersService.updateWorkerProfile(req.user.id, dto);
+  }
+
+  // ─── Saved Jobs (Sprint 2.2) ───────────────────────────────────────────────
+
+  @Post('me/saved-jobs/:jobId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Save a job' })
+  saveJob(
+    @Request() req: { user: { id: string } },
+    @Param('jobId') jobId: string,
+  ) {
+    return this.usersService.saveJob(req.user.id, jobId);
+  }
+
+  @Delete('me/saved-jobs/:jobId')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Unsave a job' })
+  unsaveJob(
+    @Request() req: { user: { id: string } },
+    @Param('jobId') jobId: string,
+  ) {
+    return this.usersService.unsaveJob(req.user.id, jobId);
+  }
+
+  @Get('me/saved-jobs')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get paginated saved jobs with full job data' })
+  getSavedJobs(
+    @Request() req: { user: { id: string } },
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.usersService.getSavedJobs(req.user.id, cursor, Number(limit ?? 20));
   }
 }

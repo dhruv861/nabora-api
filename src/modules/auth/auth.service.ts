@@ -59,7 +59,7 @@ export class AuthService {
   // ─── Verify OTP ──────────────────────────────────────────────────────────────
 
   async verifyOtp(phone: string, otp: string): Promise<{ token: string; user: object; isNew: boolean }> {
-    const storedOtp = await this.cache.get(`otp:${phone}`);
+    const storedOtp = await this.cache.get(`otp:${phone}`) as string | null;
     if (!storedOtp || storedOtp !== otp) {
       throw new HttpException(
         { error: 'OTP_INVALID', message: 'OTP is incorrect or has expired.' },

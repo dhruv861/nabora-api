@@ -18,7 +18,7 @@ export class SkillsService {
     if (!category) {
       // Check cache first
       const cached = await this.cache.get(SKILLS_CACHE_KEY);
-      if (cached) return JSON.parse(cached) as unknown[];
+      if (cached) return cached as unknown[];
     }
 
     const skills = await this.prisma.skill.findMany({
@@ -31,7 +31,7 @@ export class SkillsService {
 
     if (!category) {
       // Only cache the unfiltered list
-      await this.cache.set(SKILLS_CACHE_KEY, JSON.stringify(skills), SKILLS_CACHE_TTL);
+      await this.cache.set(SKILLS_CACHE_KEY, skills, SKILLS_CACHE_TTL);
     }
 
     return skills;

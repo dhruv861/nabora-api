@@ -11,15 +11,22 @@ export class RedisCacheProvider implements ICacheProvider {
     this.client = new Redis(config.get<string>('REDIS_URL', 'redis://localhost:6379'));
   }
 
-  async get(key: string): Promise<string | null> {
-    return this.client.get(key);
+  async get(key: string): Promise<unknown> {
+    const raw = await this.client.get(key);
+    if (raw === null) return null;
+    try {
+      return JSON.parse(raw) as unknown;
+    } catch {
+      return raw;
+    }
   }
 
-  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
+  async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
+    const serialised = JSON.stringify(value);
     if (ttlSeconds) {
-      await this.client.set(key, value, 'EX', ttlSeconds);
+      await this.client.set(key, serialised, 'EX', ttlSeconds);
     } else {
-      await this.client.set(key, value);
+      await this.client.set(key, serialised);
     }
   }
 

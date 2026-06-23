@@ -2,12 +2,13 @@ import { Injectable } from '@nestjs/common';
 import { ICacheProvider } from '../cache.interface';
 
 interface CacheEntry {
-  value: string;
+  value: string; // always stored as JSON string
   expiresAt?: number;
 }
 
 /**
  * In-memory cache using a Map with TTL tracking.
+ * JSON-serializes all values so get() returns the deserialized value.
  * Use only in development when Redis is not running.
  * Not suitable for production (not shared across instances).
  */
@@ -15,19 +16,23 @@ interface CacheEntry {
 export class MemoryCacheProvider implements ICacheProvider {
   private store = new Map<string, CacheEntry>();
 
-  async get(key: string): Promise<string | null> {
+  async get(key: string): Promise<unknown> {
     const entry = this.store.get(key);
     if (!entry) return null;
     if (entry.expiresAt && Date.now() > entry.expiresAt) {
       this.store.delete(key);
       return null;
     }
-    return entry.value;
+    try {
+      return JSON.parse(entry.value) as unknown;
+    } catch {
+      return entry.value;
+    }
   }
 
-  async set(key: string, value: string, ttlSeconds?: number): Promise<void> {
+  async set(key: string, value: unknown, ttlSeconds?: number): Promise<void> {
     this.store.set(key, {
-      value,
+      value: JSON.stringify(value),
       expiresAt: ttlSeconds ? Date.now() + ttlSeconds * 1000 : undefined,
     });
   }
@@ -38,17 +43,14 @@ export class MemoryCacheProvider implements ICacheProvider {
 
   async incr(key: string): Promise<number> {
     const current = await this.get(key);
-    const next = parseInt(current ?? '0', 10) + 1;
-    // Preserve existing TTL when incrementing
+    const next = parseInt(String(current ?? '0'), 10) + 1;
     const entry = this.store.get(key);
-    await this.set(key, String(next));
+    await this.set(key, next);
+    // Preserve existing TTL when incrementing
     if (entry?.expiresAt) {
-      const remaining = Math.ceil((entry.expiresAt - Date.now()) / 1000);
-      if (remaining > 0) {
-        const updated = this.store.get(key);
-        if (updated) {
-          this.store.set(key, { ...updated, expiresAt: entry.expiresAt });
-        }
+      const stored = this.store.get(key);
+      if (stored) {
+        this.store.set(key, { ...stored, expiresAt: entry.expiresAt });
       }
     }
     return next;
