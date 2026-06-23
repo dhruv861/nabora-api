@@ -1,0 +1,670 @@
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["postgresqlExtensions"]
+}
+
+datasource db {
+  provider   = "postgresql"
+  url        = env("DATABASE_URL")
+  extensions = [postgis]
+}
+
+// ─────────────────────────────────────────────
+// NOTE ON ENUMS
+// All status/type fields use String type with comments, NOT Prisma enum blocks.
+// This avoids PostgreSQL native enum migration pain — adding a new value
+// to a native Postgres enum requires a schema migration; TEXT does not.
+// TypeScript type safety is enforced in src/common/types/enums.ts
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// NOTE ON POSTGIS GENERATED COLUMNS
+// location_point GEOGRAPHY(Point, 4326) columns on users, jobs, and events
+// are NOT declared here — Prisma does not support GENERATED ALWAYS AS STORED columns.
+// They are added in the init migration SQL (see prisma/migrations/README.md).
+// Application code references location_point directly in $queryRaw PostGIS queries.
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────────
+
+model User {
+  id                   String    @id @default(cuid())
+  phone                String    @unique
+  name                 String?
+  email                String?   @unique
+  bio                  String?
+  avatarUrl            String?
+  accountType          String    @default("PERSONAL")           // AccountType: PERSONAL | ORGANIZATION
+  verificationLevel    String    @default("NONE")               // VerificationLevel: NONE | BRONZE | SILVER | GOLD
+  availabilityStatus   String    @default("AVAILABLE_NOW")      // AvailabilityStatus: AVAILABLE_NOW | AVAILABLE_THIS_WEEK | BUSY | UNAVAILABLE
+  isActive             Boolean   @default(true)
+  isAdmin              Boolean   @default(false)
+  isNewWorker          Boolean   @default(true)                 // boost flag, false after 5 completed jobs
+  completedJobCount    Int       @default(0)
+  reliabilityScore     Float     @default(0)
+  averageRating        Float     @default(0)
+  ratingCount          Int       @default(0)
+
+  // Location (flat columns for simple filtering)
+  // location_point GEOGRAPHY(Point, 4326) is a generated column added via raw SQL in migration
+  locationLat          Float?
+  locationLng          Float?
+  locationUpdatedAt    DateTime?
+  city                 String?
+  citySlug             String?
+  area                 String?
+
+  // Financial metadata (optional, shown only on invoices)
+  panNumber            String?
+  upiId                String?
+  bankAccount          String?
+  bankIfsc             String?
+
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  // Relations
+  workerProfile        WorkerProfile?
+  organizationMembers  OrganizationMember[]
+  jobsPosted           Job[]                @relation("JobPoster")
+  applications         Application[]
+  hiresAsWorker        Hire[]               @relation("HireWorker")
+  hiresAsEmployer      Hire[]               @relation("HireEmployer")
+  sentMessages         Message[]
+  ratingsGiven         Rating[]             @relation("RatingGiver")
+  ratingsReceived      Rating[]             @relation("RatingReceiver")
+  notifications        Notification[]
+  disputes             Dispute[]            @relation("DisputeRaiser")
+  auditLogs            AuditLog[]
+  chatsAsParticipant   ChatParticipant[]
+  savedJobs            SavedJob[]
+  savedWorkers         SavedWorker[]        @relation("SavedWorkerSaver")
+  savedByWorkers       SavedWorker[]        @relation("SavedWorkerTarget")
+
+  @@index([phone])
+  @@index([citySlug])
+  @@index([availabilityStatus])
+  @@index([isNewWorker])
+  @@index([isActive])
+}
+
+model WorkerProfile {
+  id             String          @id @default(cuid())
+  userId         String          @unique
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  headline       String?
+  categorySlug   String?         // e.g. "photographer", "promoter"
+  yearsExp       Int             @default(0)
+  portfolioItems PortfolioItem[]
+  skills         UserSkill[]
+  slug           String          @unique  // e.g. "rahul-sharma-wp20456" — immutable after creation
+  isPublic       Boolean         @default(true)
+
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  @@index([categorySlug])
+  @@index([slug])
+  @@index([isPublic])
+}
+
+model PortfolioItem {
+  id              String        @id @default(cuid())
+  workerProfileId String
+  workerProfile   WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Cascade)
+  title           String?
+  imageUrl        String
+  description     String?
+  sortOrder       Int           @default(0)
+  createdAt       DateTime      @default(now())
+}
+
+// ─────────────────────────────────────────────
+// ORGANIZATIONS
+// ─────────────────────────────────────────────
+
+model Organization {
+  id          String               @id @default(cuid())
+  name        String
+  slug        String               @unique  // e.g. "eventco-org10123" — immutable
+  logoUrl     String?
+  description String?
+  address     String?
+  city        String?
+  citySlug    String?
+  gstin       String?
+  website     String?
+  isVerified  Boolean              @default(false)
+  isActive    Boolean              @default(true)
+
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  members     OrganizationMember[]
+  jobs        Job[]
+  events      Event[]
+  invoicesIssued Invoice[]         @relation("InvoiceEmployerOrg")
+
+  @@index([citySlug])
+  @@index([slug])
+  @@index([isActive])
+}
+
+model OrganizationMember {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  userId         String
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role           String       @default("FIELD_COORDINATOR")  // OrgRole: OWNER | OPERATIONS_MANAGER | EVENT_MANAGER | FIELD_COORDINATOR | FINANCE_MANAGER
+  isActive       Boolean      @default(true)
+  invitedAt      DateTime     @default(now())
+  joinedAt       DateTime?
+
+  @@unique([organizationId, userId])
+  @@index([organizationId])
+  @@index([userId])
+}
+
+// ─────────────────────────────────────────────
+// SKILLS
+// ─────────────────────────────────────────────
+
+model Skill {
+  id         String      @id @default(cuid())
+  name       String      @unique
+  slug       String      @unique
+  category   String      // e.g. "event", "media", "logistics"
+  isActive   Boolean     @default(true)
+  userSkills UserSkill[]
+  jobSkills  JobSkill[]
+
+  @@index([category])
+}
+
+model UserSkill {
+  id              String        @id @default(cuid())
+  workerProfileId String
+  workerProfile   WorkerProfile @relation(fields: [workerProfileId], references: [id], onDelete: Cascade)
+  skillId         String
+  skill           Skill         @relation(fields: [skillId], references: [id])
+  yearsExp        Int           @default(0)
+
+  @@unique([workerProfileId, skillId])
+}
+
+// ─────────────────────────────────────────────
+// JOBS
+// ─────────────────────────────────────────────
+
+model Job {
+  id               String    @id @default(cuid())
+  slug             String    @unique  // e.g. "brand-activation-promoter-jb10234" — immutable
+  title            String
+  description      String
+  shortDescription String    // max 160 chars, used as <meta description>
+  category         String
+  categorySlug     String
+  city             String
+  citySlug         String
+  area             String
+  locationLat      Float
+  locationLng      Float
+  // location_point GEOGRAPHY(Point, 4326) — generated column, added via raw SQL migration
+
+  payRate          Float
+  payUnit          String    // HOUR | DAY | FIXED
+  workDate         DateTime
+  workDateEnd      DateTime?
+  vacancies        Int       @default(1)
+  status           String    @default("DRAFT")   // JobStatus: DRAFT | PUBLISHED | CLOSED | EXPIRED | DELETED
+  isFeatured       Boolean   @default(false)
+  featuredUntil    DateTime?
+  viewCount        Int       @default(0)
+  ogImageUrl       String?
+
+  // Relations
+  posterId         String
+  poster           User          @relation("JobPoster", fields: [posterId], references: [id])
+  organizationId   String?
+  organization     Organization? @relation(fields: [organizationId], references: [id])
+  eventId          String?
+  event            Event?        @relation(fields: [eventId], references: [id])
+  eventRoleId      String?
+  eventRole        EventRole?    @relation(fields: [eventRoleId], references: [id])
+
+  skills           JobSkill[]
+  applications     Application[]
+  hires            Hire[]
+  savedBy          SavedJob[]
+
+  createdAt        DateTime   @default(now())
+  updatedAt        DateTime   @updatedAt
+  expiresAt        DateTime?
+
+  @@index([citySlug])
+  @@index([categorySlug])
+  @@index([status])
+  @@index([workDate])
+  @@index([isFeatured])
+  @@index([citySlug, categorySlug])
+  @@index([slug])
+  @@index([posterId])
+}
+
+model JobSkill {
+  id      String @id @default(cuid())
+  jobId   String
+  job     Job    @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  skillId String
+  skill   Skill  @relation(fields: [skillId], references: [id])
+
+  @@unique([jobId, skillId])
+}
+
+// ─────────────────────────────────────────────
+// APPLICATIONS
+// ─────────────────────────────────────────────
+
+model Application {
+  id          String   @id @default(cuid())
+  jobId       String
+  job         Job      @relation(fields: [jobId], references: [id])
+  applicantId String
+  applicant   User     @relation(fields: [applicantId], references: [id])
+  status      String   @default("PENDING")  // ApplicationStatus: PENDING | SHORTLISTED | HIRED | REJECTED | WITHDRAWN
+  coverNote   String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  hire        Hire?
+
+  @@unique([jobId, applicantId])
+  @@index([jobId])
+  @@index([applicantId])
+  @@index([status])
+  @@index([jobId, status])
+}
+
+// ─────────────────────────────────────────────
+// HIRES
+// ─────────────────────────────────────────────
+
+model Hire {
+  id            String      @id @default(cuid())
+  jobId         String
+  job           Job         @relation(fields: [jobId], references: [id])
+  workerId      String
+  worker        User        @relation("HireWorker", fields: [workerId], references: [id])
+  employerId    String
+  employer      User        @relation("HireEmployer", fields: [employerId], references: [id])
+  applicationId String      @unique
+  application   Application @relation(fields: [applicationId], references: [id])
+  status        String      @default("ACTIVE")  // HireStatus: ACTIVE | COMPLETED | CANCELLED | DISPUTED
+  agreedRate    Float
+  agreedUnit    String      // HOUR | DAY | FIXED
+  startTime     DateTime?
+  endTime       DateTime?
+
+  attendance    Attendance[]
+  invoice       Invoice?
+  rating        Rating?
+  dispute       Dispute?
+
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([jobId])
+  @@index([workerId])
+  @@index([employerId])
+  @@index([status])
+  @@index([workerId, status])
+}
+
+// ─────────────────────────────────────────────
+// EVENTS
+// ─────────────────────────────────────────────
+
+model Event {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  title          String
+  description    String?
+  venue          String
+  city           String
+  citySlug       String
+  locationLat    Float
+  locationLng    Float
+  // location_point GEOGRAPHY(Point, 4326) — generated column, added via raw SQL migration
+
+  startDate      DateTime
+  endDate        DateTime
+  status         String       @default("DRAFT")  // EventStatus: DRAFT | PUBLISHED | ONGOING | COMPLETED | CANCELLED
+
+  roles          EventRole[]
+  jobs           Job[]
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  @@index([organizationId])
+  @@index([citySlug])
+  @@index([status])
+}
+
+model EventRole {
+  id          String  @id @default(cuid())
+  eventId     String
+  event       Event   @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  vacancies   Int     @default(1)
+  payRate     Float
+  payUnit     String  // HOUR | DAY | FIXED
+  jobs        Job[]
+
+  @@index([eventId])
+}
+
+// ─────────────────────────────────────────────
+// ATTENDANCE
+// ─────────────────────────────────────────────
+
+model Attendance {
+  id                String   @id @default(cuid())
+  hireId            String
+  hire              Hire     @relation(fields: [hireId], references: [id])
+  workDate          DateTime // DATE type — one row per day per hire
+  checkInTime       DateTime?
+  checkInLat        Float?
+  checkInLng        Float?
+  checkInSelfieUrl  String?
+  checkOutTime      DateTime?
+  checkOutLat       Float?
+  checkOutLng       Float?
+  totalHours        Float?   // Computed on checkout: (checkOutTime - checkInTime) / 3600
+  status            String   @default("CHECKED_IN")  // AttendanceStatus: CHECKED_IN | CHECKED_OUT | ABSENT | DISPUTED
+  markedByUserId    String?  // Field coordinator who manually marked
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@index([hireId])
+  @@index([workDate])
+  @@index([hireId, workDate])
+}
+
+// ─────────────────────────────────────────────
+// CHAT
+// ─────────────────────────────────────────────
+
+model Chat {
+  id           String            @id @default(cuid())
+  jobId        String?
+  hireId       String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  participants ChatParticipant[]
+  messages     Message[]
+
+  @@index([jobId])
+  @@index([hireId])
+}
+
+model ChatParticipant {
+  id         String    @id @default(cuid())
+  chatId     String
+  chat       Chat      @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  userId     String
+  user       User      @relation(fields: [userId], references: [id])
+  lastReadAt DateTime?
+
+  @@unique([chatId, userId])
+}
+
+model Message {
+  id        String   @id @default(cuid())
+  chatId    String
+  chat      Chat     @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  senderId  String
+  sender    User     @relation(fields: [senderId], references: [id])
+  content   String
+  type      String   @default("TEXT")  // MessageType: TEXT | IMAGE | SYSTEM
+  mediaUrl  String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([chatId])
+  @@index([senderId])
+  @@index([chatId, createdAt(sort: Desc)])
+}
+
+// ─────────────────────────────────────────────
+// RATINGS
+// ─────────────────────────────────────────────
+
+model Rating {
+  id                 String   @id @default(cuid())
+  hireId             String   @unique
+  hire               Hire     @relation(fields: [hireId], references: [id])
+  giverId            String
+  giver              User     @relation("RatingGiver", fields: [giverId], references: [id])
+  receiverId         String
+  receiver           User     @relation("RatingReceiver", fields: [receiverId], references: [id])
+  targetType         String   // RatingTargetType: WORKER | EMPLOYER
+
+  // Worker ratings (1–5)
+  skillQuality       Float?
+  communication      Float?
+  professionalism    Float?
+  punctuality        Float?
+
+  // Employer ratings (1–5)
+  paymentReliability Float?
+  workingConditions  Float?
+
+  overallScore       Float    // Calculated average of applicable subcategories
+  review             String?
+  createdAt          DateTime @default(now())
+
+  @@index([receiverId])
+  @@index([hireId])
+  @@index([receiverId, targetType])
+}
+
+// ─────────────────────────────────────────────
+// NOTIFICATIONS
+// ─────────────────────────────────────────────
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  type      String   // NotificationType: JOB_NEARBY | APPLICATION_RECEIVED | APPLICATION_SHORTLISTED | APPLICATION_HIRED | APPLICATION_REJECTED | HIRE_COMPLETED | REVIEW_RECEIVED | CHAT_MESSAGE | EVENT_REMINDER | ATTENDANCE_REMINDER | INVOICE_GENERATED | PAYMENT_RECEIVED | DISPUTE_OPENED | DISPUTE_RESOLVED
+  title     String
+  body      String
+  data      Json?    // flexible payload e.g. { jobId, hireId }
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([userId, isRead, createdAt(sort: Desc)])
+}
+
+// ─────────────────────────────────────────────
+// INVOICES
+// ─────────────────────────────────────────────
+
+model Invoice {
+  id              String    @id @default(cuid())
+  invoiceNumber   String    @unique   // NAB-2025-00001
+  hireId          String    @unique
+  hire            Hire      @relation(fields: [hireId], references: [id])
+  status          String    @default("DRAFT")  // InvoiceStatus: DRAFT | SENT | PENDING | PARTIALLY_PAID | PAID | DISPUTED | CANCELLED
+  invoiceDate     DateTime  @default(now())
+  dueDate         DateTime
+
+  // Employer snapshot (denormalized at generation time — do NOT update after creation)
+  employerName    String
+  employerAddress String?
+  employerGstin   String?
+  employerOrgId   String?
+  employerOrg     Organization? @relation("InvoiceEmployerOrg", fields: [employerOrgId], references: [id])
+
+  // Worker snapshot (denormalized at generation time — do NOT update after creation)
+  workerName      String
+  workerPhone     String
+  workerPan       String?
+  workerUpiId     String?
+  workerBankAccount String?
+  workerIfsc      String?
+
+  // Job reference snapshot
+  jobTitle        String
+  eventName       String?
+  workDate        DateTime
+  checkInTime     DateTime?
+  checkOutTime    DateTime?
+  totalHours      Float?
+
+  // Financial
+  subtotal        Float
+  platformFee     Float     @default(99)
+  gstApplicable   Boolean   @default(false)
+  gstRate         Float     @default(0.18)
+  gstAmount       Float     @default(0)
+  tdsApplicable   Boolean   @default(false)
+  tdsRate         Float     @default(0)
+  tdsAmount       Float     @default(0)
+  totalPayable    Float
+
+  // Payment tracking
+  paymentMethod   String?   // PaymentMethod: UPI | CASH | BANK_TRANSFER
+  paymentReference String?
+  paymentDate     DateTime?
+  paymentProofUrl String?
+
+  // PDF
+  pdfUrl          String?   // Cloudflare R2 URL
+  notes           String?
+  generatedBy     String    @default("PLATFORM")
+
+  lineItems       InvoiceLineItem[]
+
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([hireId])
+  @@index([status])
+  @@index([invoiceNumber])
+  @@index([employerOrgId])
+  @@index([employerOrgId, status])
+}
+
+model InvoiceLineItem {
+  id          String  @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Float
+  unit        String  // HOUR | DAY | FIXED
+  rate        Float
+  amount      Float   // quantity * rate
+
+  @@index([invoiceId])
+}
+
+// ─────────────────────────────────────────────
+// DISPUTES
+// ─────────────────────────────────────────────
+
+model Dispute {
+  id           String          @id @default(cuid())
+  hireId       String          @unique
+  hire         Hire            @relation(fields: [hireId], references: [id])
+  raisedById   String
+  raisedBy     User            @relation("DisputeRaiser", fields: [raisedById], references: [id])
+  type         String          // DisputeType: WORKER_NO_SHOW | ATTENDANCE_DISPUTE | PAYMENT_DISPUTE | FRAUDULENT_REVIEW
+  status       String          @default("OPEN")  // DisputeStatus: OPEN | UNDER_REVIEW | RESOLVED | REJECTED
+  description  String
+  resolution   String?
+  resolvedAt   DateTime?
+  resolvedById String?
+
+  evidence     DisputeEvidence[]
+
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([hireId])
+  @@index([status])
+  @@index([type])
+  @@index([raisedById])
+}
+
+model DisputeEvidence {
+  id           String   @id @default(cuid())
+  disputeId    String
+  dispute      Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
+  uploadedById String
+  fileUrl      String
+  fileType     String   // IMAGE | GPS_LOG | CHAT_EXPORT
+  description  String?
+  createdAt    DateTime @default(now())
+
+  @@index([disputeId])
+}
+
+// ─────────────────────────────────────────────
+// AUDIT LOGS
+// ─────────────────────────────────────────────
+
+model AuditLog {
+  id         String   @id @default(cuid())
+  userId     String?
+  user       User?    @relation(fields: [userId], references: [id])
+  action     String   // e.g. "job.created", "hire.completed", "dispute.opened"
+  entityType String   // e.g. "Job", "Hire"
+  entityId   String
+  metadata   Json?
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt(sort: Desc)])
+  @@index([action])
+}
+
+// ─────────────────────────────────────────────
+// SAVED JOBS & SAVED WORKERS (Sprint 2/3 — added to init migration)
+// ─────────────────────────────────────────────
+
+model SavedJob {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobId     String
+  job       Job      @relation(fields: [jobId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, jobId])
+  @@index([userId])
+}
+
+model SavedWorker {
+  id        String   @id @default(cuid())
+  saverId   String
+  saver     User     @relation("SavedWorkerSaver", fields: [saverId], references: [id], onDelete: Cascade)
+  workerId  String
+  worker    User     @relation("SavedWorkerTarget", fields: [workerId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([saverId, workerId])
+  @@index([saverId])
+}
