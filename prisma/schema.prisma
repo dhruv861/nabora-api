@@ -313,6 +313,7 @@ model Hire {
   invoice       Invoice?
   rating        Rating?
   dispute       Dispute?
+  chat          Chat?
 
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
@@ -405,7 +406,9 @@ model Attendance {
 model Chat {
   id           String            @id @default(cuid())
   jobId        String?
-  hireId       String?
+  // hireId is unique: one chat per hire — enforced at DB level to prevent TOCTOU race
+  hireId       String?           @unique
+  hire         Hire?             @relation(fields: [hireId], references: [id])
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
 

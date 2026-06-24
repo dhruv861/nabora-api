@@ -85,29 +85,25 @@ export class HiringService {
       throw err;
     }
 
-    // e: find-or-create Chat + ChatParticipant rows (Sprint 4 will wire the gateway)
+    // e: upsert Chat + ChatParticipant rows using the now-unique hireId constraint.
+    // findUnique on hireId is safe — the @@unique([hireId]) on Chat prevents duplicates at DB level.
     try {
-      let chat = await this.prisma.chat.findFirst({
-        where: {
+      await this.prisma.chat.upsert({
+        where: { hireId: hire.id },
+        create: {
           hireId: hire.id,
-        },
-      });
-      if (!chat) {
-        chat = await this.prisma.chat.create({
-          data: {
-            hireId: hire.id,
-            jobId: job.id,
-            participants: {
-              create: [
-                { userId: employerId },
-                { userId: application.applicantId },
-              ],
-            },
+          jobId: job.id,
+          participants: {
+            create: [
+              { userId: employerId },
+              { userId: application.applicantId },
+            ],
           },
-        });
-      }
+        },
+        update: {}, // no-op if already exists — idempotent
+      });
     } catch (err) {
-      this.logger.error('Failed to create chat for hire', err);
+      this.logger.error('Failed to upsert chat for hire', err);
     }
 
     // f: notify worker
@@ -168,6 +164,7 @@ export class HiringService {
         employer: { select: { id: true, name: true, avatarUrl: true } },
         attendance: { orderBy: { workDate: 'asc' } },
         invoice: { select: { id: true, status: true, totalPayable: true, invoiceNumber: true } },
+        chat: { select: { id: true } },
       },
     });
     if (!hire) throw new NotFoundException('Hire not found');
@@ -202,6 +199,7 @@ export class HiringService {
           worker: { select: { id: true, name: true, avatarUrl: true } },
           employer: { select: { id: true, name: true, avatarUrl: true } },
           invoice: { select: { status: true, totalPayable: true } },
+          chat: { select: { id: true } },
         },
       }),
     ]);
