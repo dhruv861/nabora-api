@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { BullModule } from '@nestjs/bull';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProvidersModule } from './providers/providers.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -9,6 +10,10 @@ import { SkillsModule } from './modules/skills/skills.module';
 import { UploadModule } from './modules/upload/upload.module';
 import { JobsModule } from './modules/jobs/jobs.module';
 import { SitemapModule } from './modules/sitemap/sitemap.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { ApplicationsModule } from './modules/applications/applications.module';
+import { HiringModule } from './modules/hiring/hiring.module';
+import { SavedWorkersModule } from './modules/saved-workers/saved-workers.module';
 
 @Module({
   imports: [
@@ -19,14 +24,25 @@ import { SitemapModule } from './modules/sitemap/sitemap.module';
     PrismaModule,
 
     // ─── Provider Abstraction Layer (global) ──────────────────────────────────
-    // All 7 providers (SMS, Storage, Maps, Cache, PDF, Email, Payment)
-    // Each switchable via a single env variable
     ProvidersModule,
 
-    // ─── Rate Limiting (general API — OTP-specific uses CacheProvider) ────────
+    // ─── Bull Queue (Redis-backed, global) ────────────────────────────────────
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (config: ConfigService) => ({
+        redis: {
+          host: config.get('REDIS_HOST', 'localhost'),
+          port: config.get<number>('REDIS_PORT', 6379),
+          password: config.get('REDIS_PASSWORD'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+
+    // ─── Rate Limiting ────────────────────────────────────────────────────────
     ThrottlerModule.forRoot([
-      { name: 'short',  ttl: 1000,  limit: 10  },   // 10 req/sec
-      { name: 'medium', ttl: 60000, limit: 100 },   // 100 req/min
+      { name: 'short',  ttl: 1000,  limit: 10  },
+      { name: 'medium', ttl: 60000, limit: 100 },
     ]),
 
     // ─── Feature Modules (Sprint 1) ──────────────────────────────────────────────
@@ -38,6 +54,12 @@ import { SitemapModule } from './modules/sitemap/sitemap.module';
     // ─── Feature Modules (Sprint 2) ──────────────────────────────────────────────
     JobsModule,
     SitemapModule,
+
+    // ─── Feature Modules (Sprint 3) ──────────────────────────────────────────────
+    NotificationsModule,
+    ApplicationsModule,
+    HiringModule,
+    SavedWorkersModule,
   ],
 })
 export class AppModule {}
