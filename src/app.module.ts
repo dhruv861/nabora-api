@@ -14,6 +14,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { ApplicationsModule } from './modules/applications/applications.module';
 import { HiringModule } from './modules/hiring/hiring.module';
 import { SavedWorkersModule } from './modules/saved-workers/saved-workers.module';
+import { ChatModule } from './modules/chat/chat.module';
 
 @Module({
   imports: [
@@ -45,21 +46,24 @@ import { SavedWorkersModule } from './modules/saved-workers/saved-workers.module
       { name: 'medium', ttl: 60000, limit: 100 },
     ]),
 
-    // ─── Feature Modules (Sprint 1) ──────────────────────────────────────────────
+    // ─── Feature Modules (Sprint 1) ───────────────────────────────────────────
     AuthModule,
     UsersModule,
     SkillsModule,
     UploadModule,
 
-    // ─── Feature Modules (Sprint 2) ──────────────────────────────────────────────
+    // ─── Feature Modules (Sprint 2) ───────────────────────────────────────────
     JobsModule,
     SitemapModule,
 
-    // ─── Feature Modules (Sprint 3) ──────────────────────────────────────────────
+    // ─── Feature Modules (Sprint 3) ───────────────────────────────────────────
     NotificationsModule,
     ApplicationsModule,
     HiringModule,
     SavedWorkersModule,
+
+    // ─── Feature Modules (Sprint 4) ───────────────────────────────────────────
+    ChatModule,
   ],
 })
 export class AppModule {}
