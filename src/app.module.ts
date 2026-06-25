@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
 import { BullModule } from '@nestjs/bull';
+import { ScheduleModule } from '@nestjs/schedule';
 import { PrismaModule } from './prisma/prisma.module';
 import { ProvidersModule } from './providers/providers.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -15,19 +16,15 @@ import { ApplicationsModule } from './modules/applications/applications.module';
 import { HiringModule } from './modules/hiring/hiring.module';
 import { SavedWorkersModule } from './modules/saved-workers/saved-workers.module';
 import { ChatModule } from './modules/chat/chat.module';
+import { RatingsModule } from './modules/ratings/ratings.module';
+import { OrganizationsModule } from './modules/organizations/organizations.module';
 
 @Module({
   imports: [
-    // ─── Config (global) ──────────────────────────────────────────────────────
     ConfigModule.forRoot({ isGlobal: true }),
-
-    // ─── Prisma (global) ──────────────────────────────────────────────────────
     PrismaModule,
-
-    // ─── Provider Abstraction Layer (global) ──────────────────────────────────
     ProvidersModule,
-
-    // ─── Bull Queue (Redis-backed, global) ────────────────────────────────────
+    ScheduleModule.forRoot(),
     BullModule.forRootAsync({
       imports: [ConfigModule],
       useFactory: (config: ConfigService) => ({
@@ -39,31 +36,28 @@ import { ChatModule } from './modules/chat/chat.module';
       }),
       inject: [ConfigService],
     }),
-
-    // ─── Rate Limiting ────────────────────────────────────────────────────────
     ThrottlerModule.forRoot([
       { name: 'short',  ttl: 1000,  limit: 10  },
       { name: 'medium', ttl: 60000, limit: 100 },
     ]),
-
-    // ─── Feature Modules (Sprint 1) ───────────────────────────────────────────
+    // Sprint 1
     AuthModule,
     UsersModule,
     SkillsModule,
     UploadModule,
-
-    // ─── Feature Modules (Sprint 2) ───────────────────────────────────────────
+    // Sprint 2
     JobsModule,
     SitemapModule,
-
-    // ─── Feature Modules (Sprint 3) ───────────────────────────────────────────
+    // Sprint 3
     NotificationsModule,
     ApplicationsModule,
     HiringModule,
     SavedWorkersModule,
-
-    // ─── Feature Modules (Sprint 4) ───────────────────────────────────────────
+    // Sprint 4
     ChatModule,
+    // Sprint 5
+    RatingsModule,
+    OrganizationsModule,
   ],
 })
 export class AppModule {}

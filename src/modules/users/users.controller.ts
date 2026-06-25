@@ -14,6 +14,7 @@ import {
   CreateWorkerProfileDto,
   UpdateWorkerProfileDto,
 } from './dto/users.dto';
+import { OrganizationsService } from '../organizations/organizations.service';
 
 class AddPortfolioItemDto {
   @ApiProperty() @IsString() @IsUrl() imageUrl: string;
@@ -28,20 +29,22 @@ class ReorderPortfolioDto {
 @ApiTags('users')
 @Controller()
 export class UsersController {
-  constructor(private readonly usersService: UsersService) {}
+  constructor(
+    private readonly usersService: UsersService,
+    private readonly orgsService: OrganizationsService,
+  ) {}
 
-  // ─── Public worker browse ─────────────────────────────────────────────────
+  // ─── Static routes FIRST (must come before parameterised) ──────────────────────
+
+  @Get('workers/by-slug/:slug')
+  @ApiOperation({ summary: 'Get public worker profile by slug' })
+  findWorkerBySlug(@Param('slug') slug: string) {
+    return this.usersService.findWorkerBySlug(slug);
+  }
+
   @Get('workers')
   @UseGuards(OptionalJwtAuthGuard)
-  @ApiOperation({ summary: 'Browse public worker profiles (PostGIS distance sort)' })
-  @ApiQuery({ name: 'city', required: false })
-  @ApiQuery({ name: 'category', required: false })
-  @ApiQuery({ name: 'availability', required: false })
-  @ApiQuery({ name: 'lat', required: false })
-  @ApiQuery({ name: 'lng', required: false })
-  @ApiQuery({ name: 'radius', required: false })
-  @ApiQuery({ name: 'page', required: false })
-  @ApiQuery({ name: 'limit', required: false })
+  @ApiOperation({ summary: 'Browse public worker profiles' })
   browseWorkers(
     @Query('city') city?: string,
     @Query('category') category?: string,
@@ -62,21 +65,8 @@ export class UsersController {
     });
   }
 
-  // ─── Worker profile by slug (SEO page fetch) ──────────────────────────────
-  @Get('workers/by-slug/:slug')
-  @ApiOperation({ summary: 'Get public worker profile by slug (used by SEO pages)' })
-  findWorkerBySlug(@Param('slug') slug: string) {
-    return this.usersService.findWorkerBySlug(slug);
-  }
+  // ─── /users/me/* routes (static, before /users/:id) ─────────────────────────
 
-  // ─── Public user profile by ID ────────────────────────────────────────────
-  @Get('users/:id')
-  @ApiOperation({ summary: 'Get public user profile by ID' })
-  findOne(@Param('id') id: string) {
-    return this.usersService.findPublicProfile(id);
-  }
-
-  // ─── My profile mutations ─────────────────────────────────────────────────
   @Patch('users/me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -109,7 +99,6 @@ export class UsersController {
     return this.usersService.updateWorkerProfile(req.user.id, dto);
   }
 
-  // ─── Portfolio management ─────────────────────────────────────────────────
   @Post('users/me/portfolio')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -136,7 +125,18 @@ export class UsersController {
     return this.usersService.reorderPortfolio(req.user.id, dto.orderedIds);
   }
 
-  // ─── Saved Jobs ───────────────────────────────────────────────────────────
+  @Get('users/me/saved-jobs')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Get paginated saved jobs' })
+  getSavedJobs(
+    @Request() req: { user: { id: string } },
+    @Query('cursor') cursor?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.usersService.getSavedJobs(req.user.id, cursor, Number(limit ?? 20));
+  }
+
   @Post('users/me/saved-jobs/:jobId')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -155,15 +155,20 @@ export class UsersController {
     return this.usersService.unsaveJob(req.user.id, jobId);
   }
 
-  @Get('users/me/saved-jobs')
+  /** GET /v1/users/me/organizations — Sprint 5 */
+  @Get('users/me/organizations')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Get paginated saved jobs' })
-  getSavedJobs(
-    @Request() req: { user: { id: string } },
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.usersService.getSavedJobs(req.user.id, cursor, Number(limit ?? 20));
+  @ApiOperation({ summary: "Get orgs the current user belongs to" })
+  myOrganizations(@Request() req: { user: { id: string } }) {
+    return this.orgsService.myOrganizations(req.user.id);
+  }
+
+  // ─── Parameterised routes LAST ─────────────────────────────────────────────────
+
+  @Get('users/:id')
+  @ApiOperation({ summary: 'Get public user profile by ID' })
+  findOne(@Param('id') id: string) {
+    return this.usersService.findPublicProfile(id);
   }
 }
