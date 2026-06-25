@@ -19,6 +19,8 @@ import { ChatModule } from './modules/chat/chat.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
 import { EventsModule } from './modules/events/events.module';
+import { AttendanceModule } from './modules/attendance/attendance.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
 
 @Module({
   imports: [
@@ -53,6 +55,9 @@ import { EventsModule } from './modules/events/events.module';
     RatingsModule, OrganizationsModule,
     // Sprint 6
     EventsModule,
+    // Sprint 7
+    AttendanceModule,
+    InvoicesModule,
   ],
 })
 export class AppModule {}
