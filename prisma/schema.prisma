@@ -60,6 +60,7 @@ model User {
   savedJobs            SavedJob[]
   savedWorkers         SavedWorker[]        @relation("SavedWorkerSaver")
   savedByWorkers       SavedWorker[]        @relation("SavedWorkerTarget")
+  availabilitySlots    AvailabilitySlot[]   // Sprint 9
 
   @@index([phone])
   @@index([citySlug])
@@ -96,6 +97,22 @@ model PortfolioItem {
   description     String?
   sortOrder       Int           @default(0)
   createdAt       DateTime      @default(now())
+}
+
+// Sprint 9: date-level availability slots
+model AvailabilitySlot {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  date        DateTime // Store as midnight UTC; represents a calendar date
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, date])
+  @@index([userId])
+  @@index([date])
+  @@index([userId, isAvailable])
 }
 
 // ─────────────────────────────────────────────
@@ -279,7 +296,6 @@ model Hire {
   endTime       DateTime?
   attendance    Attendance[]
   invoice       Invoice?
-  // Rating now allows 2 per hire (one per direction: WORKER + EMPLOYER)
   ratings       Rating[]
   dispute       Dispute?
   chat          Chat?
@@ -409,8 +425,7 @@ model Message {
 }
 
 // ─────────────────────────────────────────────
-// RATINGS  (fixed: allows 2 per hire — one per direction)
-// @@unique([hireId, giverId]) replaces @unique hireId
+// RATINGS
 // ─────────────────────────────────────────────
 
 model Rating {

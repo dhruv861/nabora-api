@@ -24,6 +24,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
 import { DisputesModule } from './modules/disputes/disputes.module';
 import { AdminModule } from './modules/admin/admin.module';
 import { HealthModule } from './modules/health/health.module';
+import { AvailabilityModule } from './modules/availability/availability.module';
 
 @Module({
   imports: [
@@ -61,6 +62,8 @@ import { HealthModule } from './modules/health/health.module';
     AttendanceModule, InvoicesModule,
     // Sprint 8
     DisputesModule, AdminModule, HealthModule,
+    // Sprint 9
+    AvailabilityModule,
   ],
 })
 export class AppModule {}
