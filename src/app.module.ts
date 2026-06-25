@@ -21,12 +21,14 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
 import { EventsModule } from './modules/events/events.module';
 import { AttendanceModule } from './modules/attendance/attendance.module';
 import { InvoicesModule } from './modules/invoices/invoices.module';
+import { DisputesModule } from './modules/disputes/disputes.module';
+import { AdminModule } from './modules/admin/admin.module';
+import { HealthModule } from './modules/health/health.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
-    PrismaModule,
-    ProvidersModule,
+    PrismaModule, ProvidersModule,
     ScheduleModule.forRoot(),
     BullModule.forRootAsync({
       imports: [ConfigModule],
@@ -40,7 +42,7 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
       inject: [ConfigService],
     }),
     ThrottlerModule.forRoot([
-      { name: 'short',  ttl: 1000,  limit: 10  },
+      { name: 'short', ttl: 1000, limit: 10 },
       { name: 'medium', ttl: 60000, limit: 100 },
     ]),
     // Sprint 1
@@ -56,8 +58,9 @@ import { InvoicesModule } from './modules/invoices/invoices.module';
     // Sprint 6
     EventsModule,
     // Sprint 7
-    AttendanceModule,
-    InvoicesModule,
+    AttendanceModule, InvoicesModule,
+    // Sprint 8
+    DisputesModule, AdminModule, HealthModule,
   ],
 })
 export class AppModule {}

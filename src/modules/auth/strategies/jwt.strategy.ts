@@ -4,8 +4,9 @@ import { ExtractJwt, Strategy } from 'passport-jwt';
 import { PrismaService } from '../../../prisma/prisma.service';
 
 export interface JwtPayload {
-  sub: string;  // user id
+  sub: string;
   phone: string;
+  isAdmin?: boolean;
 }
 
 @Injectable()
@@ -29,6 +30,7 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
         },
       },
     });
-    return user;
+    // Attach isAdmin from DB (source of truth) to request.user
+    return user ? { ...user, isAdmin: user.isAdmin } : null;
   }
 }
