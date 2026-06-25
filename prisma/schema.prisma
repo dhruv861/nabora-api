@@ -11,22 +11,6 @@ datasource db {
 }
 
 // ─────────────────────────────────────────────
-// NOTE ON ENUMS
-// All status/type fields use String type with comments, NOT Prisma enum blocks.
-// This avoids PostgreSQL native enum migration pain — adding a new value
-// to a native Postgres enum requires a schema migration; TEXT does not.
-// TypeScript type safety is enforced in src/common/types/enums.ts
-// ─────────────────────────────────────────────
-
-// ─────────────────────────────────────────────
-// NOTE ON POSTGIS GENERATED COLUMNS
-// location_point GEOGRAPHY(Point, 4326) columns on users, jobs, and events
-// are NOT declared here — Prisma does not support GENERATED ALWAYS AS STORED columns.
-// They are added in the init migration SQL (see prisma/migrations/README.md).
-// Application code references location_point directly in $queryRaw PostGIS queries.
-// ─────────────────────────────────────────────
-
-// ─────────────────────────────────────────────
 // USERS
 // ─────────────────────────────────────────────
 
@@ -37,36 +21,29 @@ model User {
   email                String?   @unique
   bio                  String?
   avatarUrl            String?
-  accountType          String    @default("PERSONAL")           // AccountType: PERSONAL | ORGANIZATION
-  verificationLevel    String    @default("NONE")               // VerificationLevel: NONE | BRONZE | SILVER | GOLD
-  availabilityStatus   String    @default("AVAILABLE_NOW")      // AvailabilityStatus: AVAILABLE_NOW | AVAILABLE_THIS_WEEK | BUSY | UNAVAILABLE
+  accountType          String    @default("PERSONAL")
+  verificationLevel    String    @default("NONE")
+  availabilityStatus   String    @default("AVAILABLE_NOW")
   isActive             Boolean   @default(true)
   isAdmin              Boolean   @default(false)
-  isNewWorker          Boolean   @default(true)                 // boost flag, false after 5 completed jobs
+  isNewWorker          Boolean   @default(true)
   completedJobCount    Int       @default(0)
   reliabilityScore     Float     @default(0)
   averageRating        Float     @default(0)
   ratingCount          Int       @default(0)
-
-  // Location (flat columns for simple filtering)
-  // location_point GEOGRAPHY(Point, 4326) is a generated column added via raw SQL in migration
   locationLat          Float?
   locationLng          Float?
   locationUpdatedAt    DateTime?
   city                 String?
   citySlug             String?
   area                 String?
-
-  // Financial metadata (optional, shown only on invoices)
   panNumber            String?
   upiId                String?
   bankAccount          String?
   bankIfsc             String?
-
   createdAt            DateTime  @default(now())
   updatedAt            DateTime  @updatedAt
 
-  // Relations
   workerProfile        WorkerProfile?
   organizationMembers  OrganizationMember[]
   jobsPosted           Job[]                @relation("JobPoster")
@@ -96,13 +73,12 @@ model WorkerProfile {
   userId         String          @unique
   user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   headline       String?
-  categorySlug   String?         // e.g. "photographer", "promoter"
+  categorySlug   String?
   yearsExp       Int             @default(0)
   portfolioItems PortfolioItem[]
   skills         UserSkill[]
-  slug           String          @unique  // e.g. "rahul-sharma-wp20456" — immutable after creation
+  slug           String          @unique
   isPublic       Boolean         @default(true)
-
   createdAt      DateTime        @default(now())
   updatedAt      DateTime        @updatedAt
 
@@ -129,7 +105,7 @@ model PortfolioItem {
 model Organization {
   id          String               @id @default(cuid())
   name        String
-  slug        String               @unique  // e.g. "eventco-org10123" — immutable
+  slug        String               @unique
   logoUrl     String?
   description String?
   address     String?
@@ -139,14 +115,13 @@ model Organization {
   website     String?
   isVerified  Boolean              @default(false)
   isActive    Boolean              @default(true)
-
   createdAt   DateTime             @default(now())
   updatedAt   DateTime             @updatedAt
 
-  members     OrganizationMember[]
-  jobs        Job[]
-  events      Event[]
-  invoicesIssued Invoice[]         @relation("InvoiceEmployerOrg")
+  members        OrganizationMember[]
+  jobs           Job[]
+  events         Event[]
+  invoicesIssued Invoice[]           @relation("InvoiceEmployerOrg")
 
   @@index([citySlug])
   @@index([slug])
@@ -159,7 +134,7 @@ model OrganizationMember {
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   userId         String
   user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role           String       @default("FIELD_COORDINATOR")  // OrgRole: OWNER | OPERATIONS_MANAGER | EVENT_MANAGER | FIELD_COORDINATOR | FINANCE_MANAGER
+  role           String       @default("FIELD_COORDINATOR")
   isActive       Boolean      @default(true)
   invitedAt      DateTime     @default(now())
   joinedAt       DateTime?
@@ -177,7 +152,7 @@ model Skill {
   id         String      @id @default(cuid())
   name       String      @unique
   slug       String      @unique
-  category   String      // e.g. "event", "media", "logistics"
+  category   String
   isActive   Boolean     @default(true)
   userSkills UserSkill[]
   jobSkills  JobSkill[]
@@ -202,10 +177,10 @@ model UserSkill {
 
 model Job {
   id               String    @id @default(cuid())
-  slug             String    @unique  // e.g. "brand-activation-promoter-jb10234" — immutable
+  slug             String    @unique
   title            String
   description      String
-  shortDescription String    // max 160 chars, used as <meta description>
+  shortDescription String
   category         String
   categorySlug     String
   city             String
@@ -213,20 +188,16 @@ model Job {
   area             String
   locationLat      Float
   locationLng      Float
-  // location_point GEOGRAPHY(Point, 4326) — generated column, added via raw SQL migration
-
   payRate          Float
-  payUnit          String    // HOUR | DAY | FIXED
+  payUnit          String
   workDate         DateTime
   workDateEnd      DateTime?
   vacancies        Int       @default(1)
-  status           String    @default("DRAFT")   // JobStatus: DRAFT | PUBLISHED | CLOSED | EXPIRED | DELETED
+  status           String    @default("DRAFT")
   isFeatured       Boolean   @default(false)
   featuredUntil    DateTime?
   viewCount        Int       @default(0)
   ogImageUrl       String?
-
-  // Relations
   posterId         String
   poster           User          @relation("JobPoster", fields: [posterId], references: [id])
   organizationId   String?
@@ -235,12 +206,10 @@ model Job {
   event            Event?        @relation(fields: [eventId], references: [id])
   eventRoleId      String?
   eventRole        EventRole?    @relation(fields: [eventRoleId], references: [id])
-
   skills           JobSkill[]
   applications     Application[]
   hires            Hire[]
   savedBy          SavedJob[]
-
   createdAt        DateTime   @default(now())
   updatedAt        DateTime   @updatedAt
   expiresAt        DateTime?
@@ -253,6 +222,7 @@ model Job {
   @@index([citySlug, categorySlug])
   @@index([slug])
   @@index([posterId])
+  @@index([eventId])
 }
 
 model JobSkill {
@@ -275,11 +245,10 @@ model Application {
   job         Job      @relation(fields: [jobId], references: [id])
   applicantId String
   applicant   User     @relation(fields: [applicantId], references: [id])
-  status      String   @default("PENDING")  // ApplicationStatus: PENDING | SHORTLISTED | HIRED | REJECTED | WITHDRAWN
+  status      String   @default("PENDING")
   coverNote   String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
-
   hire        Hire?
 
   @@unique([jobId, applicantId])
@@ -303,18 +272,17 @@ model Hire {
   employer      User        @relation("HireEmployer", fields: [employerId], references: [id])
   applicationId String      @unique
   application   Application @relation(fields: [applicationId], references: [id])
-  status        String      @default("ACTIVE")  // HireStatus: ACTIVE | COMPLETED | CANCELLED | DISPUTED
+  status        String      @default("ACTIVE")
   agreedRate    Float
-  agreedUnit    String      // HOUR | DAY | FIXED
+  agreedUnit    String
   startTime     DateTime?
   endTime       DateTime?
-
   attendance    Attendance[]
   invoice       Invoice?
-  rating        Rating?
+  // Rating now allows 2 per hire (one per direction: WORKER + EMPLOYER)
+  ratings       Rating[]
   dispute       Dispute?
   chat          Chat?
-
   createdAt     DateTime    @default(now())
   updatedAt     DateTime    @updatedAt
 
@@ -340,15 +308,11 @@ model Event {
   citySlug       String
   locationLat    Float
   locationLng    Float
-  // location_point GEOGRAPHY(Point, 4326) — generated column, added via raw SQL migration
-
   startDate      DateTime
   endDate        DateTime
-  status         String       @default("DRAFT")  // EventStatus: DRAFT | PUBLISHED | ONGOING | COMPLETED | CANCELLED
-
+  status         String       @default("DRAFT")
   roles          EventRole[]
   jobs           Job[]
-
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
@@ -365,7 +329,7 @@ model EventRole {
   description String?
   vacancies   Int     @default(1)
   payRate     Float
-  payUnit     String  // HOUR | DAY | FIXED
+  payUnit     String
   jobs        Job[]
 
   @@index([eventId])
@@ -379,7 +343,7 @@ model Attendance {
   id                String   @id @default(cuid())
   hireId            String
   hire              Hire     @relation(fields: [hireId], references: [id])
-  workDate          DateTime // DATE type — one row per day per hire
+  workDate          DateTime
   checkInTime       DateTime?
   checkInLat        Float?
   checkInLng        Float?
@@ -387,10 +351,9 @@ model Attendance {
   checkOutTime      DateTime?
   checkOutLat       Float?
   checkOutLng       Float?
-  totalHours        Float?   // Computed on checkout: (checkOutTime - checkInTime) / 3600
-  status            String   @default("CHECKED_IN")  // AttendanceStatus: CHECKED_IN | CHECKED_OUT | ABSENT | DISPUTED
-  markedByUserId    String?  // Field coordinator who manually marked
-
+  totalHours        Float?
+  status            String   @default("CHECKED_IN")
+  markedByUserId    String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -406,12 +369,10 @@ model Attendance {
 model Chat {
   id           String            @id @default(cuid())
   jobId        String?
-  // hireId is unique: one chat per hire — enforced at DB level to prevent TOCTOU race
   hireId       String?           @unique
   hire         Hire?             @relation(fields: [hireId], references: [id])
   createdAt    DateTime          @default(now())
   updatedAt    DateTime          @updatedAt
-
   participants ChatParticipant[]
   messages     Message[]
 
@@ -437,7 +398,7 @@ model Message {
   senderId  String
   sender    User     @relation(fields: [senderId], references: [id])
   content   String
-  type      String   @default("TEXT")  // MessageType: TEXT | IMAGE | SYSTEM
+  type      String   @default("TEXT")
   mediaUrl  String?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
@@ -448,33 +409,30 @@ model Message {
 }
 
 // ─────────────────────────────────────────────
-// RATINGS
+// RATINGS  (fixed: allows 2 per hire — one per direction)
+// @@unique([hireId, giverId]) replaces @unique hireId
 // ─────────────────────────────────────────────
 
 model Rating {
   id                 String   @id @default(cuid())
-  hireId             String   @unique
+  hireId             String
   hire               Hire     @relation(fields: [hireId], references: [id])
   giverId            String
   giver              User     @relation("RatingGiver", fields: [giverId], references: [id])
   receiverId         String
   receiver           User     @relation("RatingReceiver", fields: [receiverId], references: [id])
-  targetType         String   // RatingTargetType: WORKER | EMPLOYER
-
-  // Worker ratings (1–5)
+  targetType         String
   skillQuality       Float?
   communication      Float?
   professionalism    Float?
   punctuality        Float?
-
-  // Employer ratings (1–5)
   paymentReliability Float?
   workingConditions  Float?
-
-  overallScore       Float    // Calculated average of applicable subcategories
+  overallScore       Float
   review             String?
   createdAt          DateTime @default(now())
 
+  @@unique([hireId, giverId])
   @@index([receiverId])
   @@index([hireId])
   @@index([receiverId, targetType])
@@ -488,10 +446,10 @@ model Notification {
   id        String   @id @default(cuid())
   userId    String
   user      User     @relation(fields: [userId], references: [id])
-  type      String   // NotificationType: JOB_NEARBY | APPLICATION_RECEIVED | APPLICATION_SHORTLISTED | APPLICATION_HIRED | APPLICATION_REJECTED | HIRE_COMPLETED | REVIEW_RECEIVED | CHAT_MESSAGE | EVENT_REMINDER | ATTENDANCE_REMINDER | INVOICE_GENERATED | PAYMENT_RECEIVED | DISPUTE_OPENED | DISPUTE_RESOLVED
+  type      String
   title     String
   body      String
-  data      Json?    // flexible payload e.g. { jobId, hireId }
+  data      Json?
   isRead    Boolean  @default(false)
   createdAt DateTime @default(now())
 
@@ -505,69 +463,54 @@ model Notification {
 // ─────────────────────────────────────────────
 
 model Invoice {
-  id              String    @id @default(cuid())
-  invoiceNumber   String    @unique   // NAB-2025-00001
-  hireId          String    @unique
-  hire            Hire      @relation(fields: [hireId], references: [id])
-  status          String    @default("DRAFT")  // InvoiceStatus: DRAFT | SENT | PENDING | PARTIALLY_PAID | PAID | DISPUTED | CANCELLED
-  invoiceDate     DateTime  @default(now())
-  dueDate         DateTime
-
-  // Employer snapshot (denormalized at generation time — do NOT update after creation)
-  employerName    String
-  employerAddress String?
-  employerGstin   String?
-  employerOrgId   String?
-  employerOrg     Organization? @relation("InvoiceEmployerOrg", fields: [employerOrgId], references: [id])
-
-  // Worker snapshot (denormalized at generation time — do NOT update after creation)
-  workerName      String
-  workerPhone     String
-  workerPan       String?
-  workerUpiId     String?
+  id                String    @id @default(cuid())
+  invoiceNumber     String    @unique
+  hireId            String    @unique
+  hire              Hire      @relation(fields: [hireId], references: [id])
+  status            String    @default("DRAFT")
+  invoiceDate       DateTime  @default(now())
+  dueDate           DateTime
+  employerName      String
+  employerAddress   String?
+  employerGstin     String?
+  employerOrgId     String?
+  employerOrg       Organization? @relation("InvoiceEmployerOrg", fields: [employerOrgId], references: [id])
+  workerName        String
+  workerPhone       String
+  workerPan         String?
+  workerUpiId       String?
   workerBankAccount String?
-  workerIfsc      String?
-
-  // Job reference snapshot
-  jobTitle        String
-  eventName       String?
-  workDate        DateTime
-  checkInTime     DateTime?
-  checkOutTime    DateTime?
-  totalHours      Float?
-
-  // Financial
-  subtotal        Float
-  platformFee     Float     @default(99)
-  gstApplicable   Boolean   @default(false)
-  gstRate         Float     @default(0.18)
-  gstAmount       Float     @default(0)
-  tdsApplicable   Boolean   @default(false)
-  tdsRate         Float     @default(0)
-  tdsAmount       Float     @default(0)
-  totalPayable    Float
-
-  // Payment tracking
-  paymentMethod   String?   // PaymentMethod: UPI | CASH | BANK_TRANSFER
-  paymentReference String?
-  paymentDate     DateTime?
-  paymentProofUrl String?
-
-  // PDF
-  pdfUrl          String?   // Cloudflare R2 URL
-  notes           String?
-  generatedBy     String    @default("PLATFORM")
-
-  lineItems       InvoiceLineItem[]
-
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  workerIfsc        String?
+  jobTitle          String
+  eventName         String?
+  workDate          DateTime
+  checkInTime       DateTime?
+  checkOutTime      DateTime?
+  totalHours        Float?
+  subtotal          Float
+  platformFee       Float     @default(99)
+  gstApplicable     Boolean   @default(false)
+  gstRate           Float     @default(0.18)
+  gstAmount         Float     @default(0)
+  tdsApplicable     Boolean   @default(false)
+  tdsRate           Float     @default(0)
+  tdsAmount         Float     @default(0)
+  totalPayable      Float
+  paymentMethod     String?
+  paymentReference  String?
+  paymentDate       DateTime?
+  paymentProofUrl   String?
+  pdfUrl            String?
+  notes             String?
+  generatedBy       String    @default("PLATFORM")
+  lineItems         InvoiceLineItem[]
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
 
   @@index([hireId])
   @@index([status])
   @@index([invoiceNumber])
   @@index([employerOrgId])
-  @@index([employerOrgId, status])
 }
 
 model InvoiceLineItem {
@@ -576,9 +519,9 @@ model InvoiceLineItem {
   invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   description String
   quantity    Float
-  unit        String  // HOUR | DAY | FIXED
+  unit        String
   rate        Float
-  amount      Float   // quantity * rate
+  amount      Float
 
   @@index([invoiceId])
 }
@@ -593,15 +536,13 @@ model Dispute {
   hire         Hire            @relation(fields: [hireId], references: [id])
   raisedById   String
   raisedBy     User            @relation("DisputeRaiser", fields: [raisedById], references: [id])
-  type         String          // DisputeType: WORKER_NO_SHOW | ATTENDANCE_DISPUTE | PAYMENT_DISPUTE | FRAUDULENT_REVIEW
-  status       String          @default("OPEN")  // DisputeStatus: OPEN | UNDER_REVIEW | RESOLVED | REJECTED
+  type         String
+  status       String          @default("OPEN")
   description  String
   resolution   String?
   resolvedAt   DateTime?
   resolvedById String?
-
   evidence     DisputeEvidence[]
-
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
@@ -617,7 +558,7 @@ model DisputeEvidence {
   dispute      Dispute  @relation(fields: [disputeId], references: [id], onDelete: Cascade)
   uploadedById String
   fileUrl      String
-  fileType     String   // IMAGE | GPS_LOG | CHAT_EXPORT
+  fileType     String
   description  String?
   createdAt    DateTime @default(now())
 
@@ -632,8 +573,8 @@ model AuditLog {
   id         String   @id @default(cuid())
   userId     String?
   user       User?    @relation(fields: [userId], references: [id])
-  action     String   // e.g. "job.created", "hire.completed", "dispute.opened"
-  entityType String   // e.g. "Job", "Hire"
+  action     String
+  entityType String
   entityId   String
   metadata   Json?
   ipAddress  String?
@@ -646,7 +587,7 @@ model AuditLog {
 }
 
 // ─────────────────────────────────────────────
-// SAVED JOBS & SAVED WORKERS (Sprint 2/3 — added to init migration)
+// SAVED JOBS & SAVED WORKERS
 // ─────────────────────────────────────────────
 
 model SavedJob {

@@ -18,6 +18,7 @@ import { SavedWorkersModule } from './modules/saved-workers/saved-workers.module
 import { ChatModule } from './modules/chat/chat.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { OrganizationsModule } from './modules/organizations/organizations.module';
+import { EventsModule } from './modules/events/events.module';
 
 @Module({
   imports: [
@@ -41,23 +42,17 @@ import { OrganizationsModule } from './modules/organizations/organizations.modul
       { name: 'medium', ttl: 60000, limit: 100 },
     ]),
     // Sprint 1
-    AuthModule,
-    UsersModule,
-    SkillsModule,
-    UploadModule,
+    AuthModule, UsersModule, SkillsModule, UploadModule,
     // Sprint 2
-    JobsModule,
-    SitemapModule,
+    JobsModule, SitemapModule,
     // Sprint 3
-    NotificationsModule,
-    ApplicationsModule,
-    HiringModule,
-    SavedWorkersModule,
+    NotificationsModule, ApplicationsModule, HiringModule, SavedWorkersModule,
     // Sprint 4
     ChatModule,
     // Sprint 5
-    RatingsModule,
-    OrganizationsModule,
+    RatingsModule, OrganizationsModule,
+    // Sprint 6
+    EventsModule,
   ],
 })
 export class AppModule {}
