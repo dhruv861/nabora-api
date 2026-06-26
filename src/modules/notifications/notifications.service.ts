@@ -22,7 +22,7 @@ export class NotificationsService {
   ) {
     try {
       const notification = await this.prisma.notification.create({
-        data: { userId, type, title, body, data: data ?? {} },
+        data: { userId, type, title, body, data: (data ?? {}) as any },
       });
       // Sprint 4: push to socket room
       this.gateway.emitToUser(userId, 'notification', {

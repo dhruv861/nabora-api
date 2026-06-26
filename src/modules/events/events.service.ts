@@ -340,7 +340,7 @@ export class EventsService {
       try {
         const hire = await this.hiringService.hire(item.applicationId, employerId, {
           agreedRate: item.agreedRate,
-          agreedUnit: item.agreedUnit,
+          agreedUnit: item.agreedUnit as 'HOUR' | 'DAY' | 'FIXED',
           startTime: item.startTime,
           endTime: item.endTime,
         });

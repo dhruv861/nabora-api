@@ -93,7 +93,7 @@ export class NotificationsController {
       data: { isRead: true },
     });
     // Bust cache
-    await this.cache.delete?.(`notif:unread:${req.user.id}`);
+    await this.cache.del(`notif:unread:${req.user.id}`);
     return { success: true };
   }
 
@@ -108,7 +108,7 @@ export class NotificationsController {
       where: { userId: req.user.id, isRead: false },
       data: { isRead: true },
     });
-    await this.cache.delete?.(`notif:unread:${req.user.id}`);
+    await this.cache.del(`notif:unread:${req.user.id}`);
     return { success: true };
   }
 }

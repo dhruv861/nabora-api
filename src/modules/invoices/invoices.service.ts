@@ -7,10 +7,11 @@ import {
   Inject,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import type { Queue } from 'bull';
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
-import { STORAGE_PROVIDER, IStorageProvider } from '../../providers/storage/storage.interface';
+import { STORAGE_PROVIDER } from '../../providers/storage/storage.interface';
+import type { IStorageProvider } from '../../providers/storage/storage.interface';
 import { UpdateInvoiceDto, MarkPaidDto, ListInvoicesQueryDto } from './dto/invoices.dto';
 import { renderInvoiceHtml } from './templates/invoice.html';
 
@@ -42,7 +43,7 @@ export class InvoicesService {
       include: {
         job: { select: { title: true, organizationId: true, eventId: true, event: { select: { title: true } } } },
         worker: { select: { id: true, name: true, phone: true, panNumber: true, upiId: true } },
-        employer: { select: { id: true, name: true, gstin: true } },
+        employer: { select: { id: true, name: true } },
         attendance: {
           where: { status: 'CHECKED_OUT' },
           orderBy: { workDate: 'asc' },
@@ -51,6 +52,7 @@ export class InvoicesService {
       },
     });
     if (!hire) { this.logger.error(`Hire ${hireId} not found`); return; }
+    const h = hire as any;
 
     const existing = await this.prisma.invoice.findUnique({ where: { hireId } });
 
@@ -60,15 +62,15 @@ export class InvoicesService {
       return;
     }
 
-    const attendance = hire.attendance[0];
+    const attendance = h.attendance[0];
     const totalHours = attendance?.totalHours ?? 0;
     const quantity = hire.agreedUnit === 'HOUR' ? totalHours : 1;
     const subtotal = quantity * hire.agreedRate;
     const platformFee = 99;
-    const gstApplicable = !!(hire.employer as any).gstin;
+    const gstApplicable = !!h.employer.gstin;
     const gstRate = 0.18;
     const gstAmount = gstApplicable ? +(subtotal * gstRate).toFixed(2) : 0;
-    const tdsApplicable = !!(hire.worker.panNumber) && subtotal > 30000;
+    const tdsApplicable = !!h.worker.panNumber && subtotal > 30000;
     const tdsRate = tdsApplicable ? 0.01 : 0;
     const tdsAmount = tdsApplicable ? +(subtotal * tdsRate).toFixed(2) : 0;
     const totalPayable = +(subtotal + platformFee + gstAmount - tdsAmount).toFixed(2);
@@ -80,15 +82,15 @@ export class InvoicesService {
       hireId,
       status: 'PENDING',
       dueDate,
-      employerName: hire.employer.name ?? 'Employer',
-      employerGstin: (hire.employer as any).gstin ?? null,
-      employerOrgId: hire.job.organizationId ?? null,
-      workerName: hire.worker.name ?? 'Worker',
-      workerPhone: hire.worker.phone,
-      workerPan: hire.worker.panNumber ?? null,
-      workerUpiId: hire.worker.upiId ?? null,
-      jobTitle: hire.job.title,
-      eventName: hire.job.event?.title ?? null,
+      employerName: h.employer.name ?? 'Employer',
+      employerGstin: h.employer.gstin ?? null,
+      employerOrgId: h.job.organizationId ?? null,
+      workerName: h.worker.name ?? 'Worker',
+      workerPhone: h.worker.phone,
+      workerPan: h.worker.panNumber ?? null,
+      workerUpiId: h.worker.upiId ?? null,
+      jobTitle: h.job.title,
+      eventName: h.job.event?.title ?? null,
       workDate: attendance?.workDate ?? new Date(),
       checkInTime: attendance?.checkInTime ?? null,
       checkOutTime: attendance?.checkOutTime ?? null,
@@ -111,7 +113,7 @@ export class InvoicesService {
         ...invoiceData,
         lineItems: {
           create: [{
-            description: `${hire.job.title}${hire.job.event ? ` — ${hire.job.event.title}` : ''}`,
+            description: `${h.job.title}${h.job.event ? ` — ${h.job.event.title}` : ''}`,
             quantity,
             unit: hire.agreedUnit,
             rate: hire.agreedRate,
@@ -122,7 +124,7 @@ export class InvoicesService {
       update: {
         ...invoiceData,
         lineItems: { deleteMany: {}, create: [{
-          description: `${hire.job.title}`,
+          description: `${h.job.title}`,
           quantity,
           unit: hire.agreedUnit,
           rate: hire.agreedRate,
@@ -136,16 +138,17 @@ export class InvoicesService {
 
     // Notify both parties
     this.notifications.notify(
-      hire.worker.id, 'INVOICE_GENERATED', 'Invoice Generated',
+      h.worker.id, 'INVOICE_GENERATED', 'Invoice Generated',
       `Invoice ${invoiceNumber} for \u20b9${totalPayable} is ready.`,
       { invoiceId: invoice.id, hireId },
     ).catch(() => {});
     this.notifications.notify(
-      hire.employer.id, 'INVOICE_GENERATED', 'Invoice Ready',
-      `Invoice ${invoiceNumber} for ${hire.worker.name ?? 'worker'} is ready to review.`,
+      h.employer.id, 'INVOICE_GENERATED', 'Invoice Ready',
+      `Invoice ${invoiceNumber} for ${h.worker.name ?? 'worker'} is ready to review.`,
       { invoiceId: invoice.id, hireId },
     ).catch(() => {});
   }
+
 
   // ── REST endpoints ────────────────────────────────────────────────────
 

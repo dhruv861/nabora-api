@@ -1,9 +1,11 @@
 import { Processor, Process } from '@nestjs/bull';
-import { Job } from 'bull';
+import type { Job } from 'bull';
 import { Logger, Inject } from '@nestjs/common';
 import { PrismaService } from '../../../prisma/prisma.service';
-import { PDF_PROVIDER, IPdfProvider } from '../../../providers/pdf/pdf.interface';
-import { STORAGE_PROVIDER, IStorageProvider } from '../../../providers/storage/storage.interface';
+import { PDF_PROVIDER } from '../../../providers/pdf/pdf.interface';
+import type { IPdfProvider } from '../../../providers/pdf/pdf.interface';
+import { STORAGE_PROVIDER } from '../../../providers/storage/storage.interface';
+import type { IStorageProvider } from '../../../providers/storage/storage.interface';
 import { renderInvoiceHtml } from '../templates/invoice.html';
 
 @Processor('invoice-pdf')
