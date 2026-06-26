@@ -183,7 +183,7 @@ export class JobsService {
 
     const page = filtered.slice(0, limit);
     const nextCursor = filtered.length > limit
-      ? Buffer.from(JSON.stringify({ id: page[page.length - 1].id, score: page[page.length - 1].matchScore })).toString('base64url')
+      ? Buffer.from(JSON.stringify({ id: (page[page.length - 1] as any).id, score: page[page.length - 1].matchScore })).toString('base64url')
       : null;
 
     return { jobs: page, nextCursor };

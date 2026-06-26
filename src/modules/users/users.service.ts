@@ -82,9 +82,9 @@ export class UsersService {
     if (query.availability) where.availabilityStatus = query.availability;
 
     const [total, workers] = await Promise.all([
-      this.prisma.user.count({ where: where as Parameters<typeof this.prisma.user.count>[0]['where'] }),
+      this.prisma.user.count({ where: where as any }),
       this.prisma.user.findMany({
-        where: where as Parameters<typeof this.prisma.user.findMany>[0]['where'],
+        where: where as any,
         orderBy: [{ reliabilityScore: 'desc' }, { averageRating: 'desc' }],
         skip,
         take: limit,

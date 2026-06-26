@@ -1,6 +1,7 @@
 import {
-  IsString, IsIn, IsOptional, IsNumber, Min, Max, IsInt, Type,
+  IsString, IsIn, IsOptional, IsNumber, Min, Max, IsInt,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateRatingDto {

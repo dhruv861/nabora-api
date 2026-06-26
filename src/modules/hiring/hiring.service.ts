@@ -8,7 +8,7 @@ import {
 import { PrismaService } from '../../prisma/prisma.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { InjectQueue } from '@nestjs/bull';
-import { Queue } from 'bull';
+import type { Queue } from 'bull';
 import { HireApplicationDto, ListHiresQueryDto } from './dto/hiring.dto';
 
 const INVOICE_QUEUE = 'invoice-generation';
